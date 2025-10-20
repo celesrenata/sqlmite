@@ -36,7 +36,7 @@ class DataMapper:
             
         return mapped_results
         
-    def _map_row(self, row: Dict[str, Any]]) -> Dict[str, Any]:
+    def _map_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """
         Map a single row from PostgreSQL to SQLite format.
         
