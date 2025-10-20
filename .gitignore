@@ -36,7 +36,11 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+test_bridge.db
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
