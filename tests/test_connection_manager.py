@@ -15,7 +15,7 @@ class TestConnectionManager(unittest.TestCase):
         """
         Set up test fixtures before each test method.
         """
-        self.postgres_url = "postgresql://user:pass@localhost:5432/testdb"
+        self.postgres_url = "postgresql://user:password@localhost:5432/testdb"
         self.connection_pool_size = 5
         
         # Create a mock connection pool for testing

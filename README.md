@@ -1,6 +1,5 @@
 # SQLite to PostgreSQL Bridge
 
-This project provides a bridge that allows SQLite applications to access PostgreSQL databases transparently. It acts as a virtual SQLite database file that proxies all operations to a PostgreSQL backend.
 
 ## Features
 

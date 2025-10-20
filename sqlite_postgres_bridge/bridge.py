@@ -7,11 +7,13 @@ import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+import os
 
 from .connection_manager import ConnectionManager
 from .query_translator import QueryTranslator
 from .data_mapper import DataMapper
+from .virtual_table_interface import VirtualTableInterface
 
 class SQLitePostgreSQLBridge:
     """
@@ -41,29 +43,42 @@ class SQLitePostgreSQLBridge:
         )
         self.query_translator = QueryTranslator()
         self.data_mapper = DataMapper()
+        self.virtual_table_interface = VirtualTableInterface(
+            sqlite_conn, 
+            postgres_url
+        )
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
         self.logger.info("SQLite to PostgreSQL bridge initialized")
         
     def create_virtual_table(self, table_name: str, 
-                              postgres_schema: Optional[Dict[str, Any]] = None) -> None:
+                              postgres_schema: Optional[Dict[str, Any]] = None) -> bool:
         """
         Create a virtual table that maps to a PostgreSQL table.
         
         Args:
             table_name: Name of the SQLite virtual table
             postgres_schema: PostgreSQL table schema definition
-        """
-        # This would implement the SQLite virtual table interface
-        # For now, we'll set up the connection and prepare for use
-        self.logger.info(f"Creating virtual table {table_name}")
-        
-        # Store schema information for query translation
-        if postgres_schema:
-            self.postgres_schema = postgres_schema
             
-    def execute_query(self, query: str, params: tuple = ()) -> list:
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Create virtual table in interface
+            result = self.virtual_table_interface.create_virtual_table(
+                table_name, 
+                postgres_schema
+            )
+            
+            self.logger.info(f"Virtual table '{table_name}' created successfully")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to create virtual table '{table_name}': {str(e)}")
+            return False
+    
+    def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:  
         """
         Execute a query against the PostgreSQL backend.
         
@@ -74,24 +89,8 @@ class SQLitePostgreSQLBridge:
         Returns:
             List of results from the query
         """
-        try:
-            # Translate SQLite query to PostgreSQL
-            postgres_query = self.query_translator.translate(query)
-            
-            # Execute against PostgreSQL
-            with self.connection_manager.get_connection() as conn:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                cursor.execute(postgres_query, params)
-                results = cursor.fetchall()
-                cursor.close()
-                
-                # Map results to SQLite format
-                return self.data_mapper.map_results(results)
-                
-        except Exception as e:
-            self.logger.error(f"Error executing query: {str(e)}")
-            raise
-            
+        return self.virtual_table_interface.execute_query(query, params)
+        
     def execute_dml(self, query: str, params: tuple = ()) -> int:
         """
         Execute Data Manipulation Language operations (INSERT, UPDATE, DELETE).
@@ -103,29 +102,29 @@ class SQLitePostgreSQLBridge:
         Returns:
             Number of affected rows
         """
-        try:
-            # Translate SQLite query to PostgreSQL
-            postgres_query = self.query_translator.translate(query)
+        return self.virtual_table_interface.execute_dml(query, params)
+        
+    def get_table_info(self, table_name: str) -> Dict[str, Any]:
+        """
+        Get comprehensive information about a table.
+        
+        Args:
+            table_name: Name of the virtual table
             
-            # Execute against PostgreSQL
-            with self.connection_manager.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(postgres_query, params)
-                affected_rows = cursor.rowcount
-                conn.commit()
-                cursor.close()
-                
-                return affected_rows
-                
-        except Exception as e:
-            self.logger.error(f"Error executing DML: {str(e)}")
-            raise
-            
+        Returns:
+            Dictionary with table information
+        """
+        return self.virtual_table_interface.get_table_info(table_name)
+        
     def close(self) -> None:
         """Close all connections and clean up resources."""
-        self.connection_manager.close()
-        self.logger.info("Bridge closed successfully")
-        
+        try:
+            self.connection_manager.close()
+            self.virtual_table_interface.close()
+            self.logger.info("Bridge closed successfully")
+        except Exception as e:
+            self.logger.error(f"Error closing bridge: {str(e)}")
+            
     def __enter__(self):
         """Context manager entry."""
         return self
@@ -133,3 +132,8 @@ class SQLitePostgreSQLBridge:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+
+# Example usage for testing
+if __name__ == "__main__":
+    # This would be used for testing purposes
+    pass

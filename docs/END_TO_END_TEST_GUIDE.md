@@ -8,11 +8,11 @@ Before beginning, ensure you have:
 1. Python 3.6 or higher installed
 2. Optional: PostgreSQL server for full integration testing
 3. Test database credentials (if using real PostgreSQL):
-   - Host: 10.1.1.12 (or 10.1.13, 10.1.1.14)
+   - Host: your.database.host (or backup.host1, backup.host2)
    - Port: 5432
    - Database: testdb
-   - Username: celes
-   - Password: PSCh4ng3me!
+   - Username: your_username
+   - Password: your_password
 
 ## Quick Start
 
