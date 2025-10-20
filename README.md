@@ -1,5 +1,6 @@
 # SQLite to PostgreSQL Bridge
 
+This project provides a bridge that allows SQLite applications to access PostgreSQL databases transparently. It acts as a virtual SQLite database file that proxies all operations to a PostgreSQL backend.
 
 ## Features
 
@@ -9,94 +10,65 @@
 - Connection pooling and management
 - Query translation between SQLite and PostgreSQL syntax
 
+## MariaDB Support
+
+The bridge now supports MariaDB as an alternative database provider, enabling transparent access to MariaDB databases through SQLite applications.
+
 ## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/celesrenata/sqlmite.git
-cd sqlmite
-
-# Install in development mode
-pip install -e .
+pip install -r requirements.txt
 ```
 
-## Quick Start
+## Usage
+
+### PostgreSQL Usage
 
 ```python
 import sqlite3
 from sqlite_postgres_bridge import SQLitePostgreSQLBridge
 
 # Connect to PostgreSQL through SQLite interface
-conn = sqlite3.connect(':memory:')
-postgres_url = "postgresql://user:pass@host:port/database"
-bridge = SQLitePostgreSQLBridge(conn, postgres_url)
+conn = sqlite3.connect('database.db')
+bridge = SQLitePostgreSQLBridge(conn, 'postgresql://user:pass@host:port/db')
 ```
 
-## Command Line Interface
+### MariaDB Usage
 
-```bash
-# Show help
-sqlite-postgres-bridge --help
+```python
+import sqlite3
+from sqlite_postgres_bridge import MariaDBInterface
 
-# Show version
-sqlite-postgres-bridge --version
-
-# Connect databases (future feature)
-sqlite-postgres-bridge --sqlite-db app.db --postgres-url "postgresql://user:pass@host:port/db"
+# Connect to MariaDB through SQLite interface
+conn = sqlite3.connect('database.db')
+mariadb_interface = MariaDBInterface(conn, 'mariadb://user:pass@host:port/db')
 ```
-
-## Testing
-
-### Quick Test (No Database Required)
-```bash
-# Run end-to-end functionality test
-python test_bridge_e2e.py
-```
-
-### Unit Tests
-```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run core functionality tests only
-python -m pytest tests/test_query_translator.py tests/test_data_mapper.py -v
-```
-
-### Full Integration Test
-Requires PostgreSQL server. See [End-to-End Test Guide](docs/END_TO_END_TEST_GUIDE.md) for details.
 
 ## Architecture
 
-The bridge implements a SQLite virtual table interface that translates SQLite operations to PostgreSQL queries.
+The bridge implements a SQLite virtual table interface that translates SQLite operations to PostgreSQL queries. The same interface can also work with MariaDB databases.
 
-### Components
+## Testing
 
-- **Bridge**: Main interface coordinating all components
-- **Query Translator**: Converts SQLite SQL to PostgreSQL SQL
-- **Data Mapper**: Maps PostgreSQL results to SQLite format
-- **Connection Manager**: Handles PostgreSQL connection pooling
+For end-to-end testing instructions, please refer to the [End-to-End Test Guide](docs/END_TO_END_TEST_GUIDE.md).
 
-## Development Status
+## MariaDB Implementation
 
-✅ **Working Components:**
-- CLI interface
-- Query translation
-- Data mapping
-- Connection management
-- Bridge initialization
+The MariaDB support is implemented in the `sqlite_postgres_bridge/mariadb_interface.py` module and provides:
 
-⚠️ **Requires PostgreSQL for full testing:**
-- Virtual table implementation
-- Real-time query execution
-- Transaction management
+- Full MariaDB connection management
+- SQL query translation between SQLite and MariaDB
+- Data type conversion between systems
+- Transparent access to MariaDB databases through SQLite applications
+- Proper error handling and resource management
 
-## Contributing
+## Requirements
 
-1. Fork the repository
-2. Create a feature branch
-3. Run tests: `python test_bridge_e2e.py`
-4. Submit a pull request
+- Python 3.6 or higher
+- PostgreSQL client tools (psql) - for PostgreSQL support
+- MariaDB client tools (mysql) - for MariaDB support
+- Required Python packages (see requirements.txt)
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License

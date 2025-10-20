@@ -13,9 +13,9 @@ The most critical missing piece has been successfully implemented:
 **File**: `sqlite_postgres_bridge/virtual_table_interface.py`
 
 **Key Features**:
-- **SQLite Virtual Table API Integration** - Core functionality that makes SQLite applications work with PostgreSQL
-- **Transparent Database Access** - Applications work unchanged with PostgreSQL backend
-- **Full Query Support** - Complete SQL query translation between SQLite and PostgreSQL
+- **SQLite Virtual Table API Integration** - Core functionality that makes SQLite applications work with PostgreSQL/MariaDB
+- **Transparent Database Access** - Applications work unchanged with PostgreSQL/MariaDB backend
+- **Full Query Support** - Complete SQL query translation between SQLite and database systems
 - **DML Operations** - INSERT, UPDATE, DELETE support
 - **Connection Management** - Proper connection handling and pooling
 - **Error Handling** - Robust error management and logging
@@ -31,25 +31,38 @@ The most critical missing piece has been successfully implemented:
 - **Context Manager** - Support for proper resource management
 - **Error Handling** - Comprehensive error management
 
+### 3. MariaDB Support Implementation (Phase 3)
+
+**File**: `sqlite_postgres_bridge/mariadb_interface.py`
+
+**Key Features**:
+- **MariaDB Connection Manager** - Full connection management for MariaDB databases
+- **MariaDB Query Translator** - SQL translation between SQLite and MariaDB
+- **MariaDB Data Mapper** - Data type conversion between systems
+- **MariaDB Interface** - Complete MariaDB integration with SQLite applications
+- **Full Database Operations** - Actual MariaDB database interaction
+
 ## Implementation Components
 
 ### 1. Core Components
-1. **Connection Manager** (`connection_manager.py`) - PostgreSQL connection pooling
+1. **Connection Manager** (`connection_manager.py`) - PostgreSQL/MariaDB connection pooling
 2. **Query Translator** (`query_translator.py`) - SQL syntax translation
 3. **Data Mapper** (`data_mapper.py`) - Data type conversion
 4. **Virtual Table Interface** (`virtual_table_interface.py`) - Core SQLite integration
-5. **Bridge** (`bridge.py`) - Main interface for SQLite-PostgreSQL integration
+5. **Bridge** (`bridge.py`) - Main interface for PostgreSQL integration
+6. **MariaDB Interface** (`mariadb_interface.py`) - MariaDB support
 
 ### 2. Testing Components
 1. **Virtual Table Interface Tests** (`tests/test_virtual_table_interface.py`) 
 2. **Bridge Tests** (`tests/test_bridge.py`)
-3. **Integration Tests** (`scripts/active_test_suite.py`)
-4. **Unit Tests** (`tests/` directory)
+3. **MariaDB Interface Tests** (`tests/test_mariadb_interface.py`)
+4. **Integration Tests** (`scripts/active_test_suite.py`)
+5. **Unit Tests** (`tests/` directory)
 
 ## Core Functionality Delivered
 
 ### 1. Transparent Access
-- ✅ SQLite applications work unchanged with PostgreSQL backend
+- ✅ SQLite applications work unchanged with PostgreSQL/MariaDB backend
 - ✅ No modification required to existing SQLite code
 - ✅ Complete database access patterns supported
 
@@ -66,24 +79,19 @@ The most critical missing piece has been successfully implemented:
 - ✅ Makefile integration for easy execution
 - ✅ CLI interface for connection testing
 
-## Test Coverage
+## MariaDB-Specific Features
 
-### 1. Virtual Table Interface Tests
-- Interface initialization testing
-- Virtual table creation with/without schemas
-- Query execution method structure testing
-- DML operations testing
-- Connection management testing
-- Table information retrieval
-- Proper cleanup testing
+### 1. MariaDB Support
+- ✅ Full MariaDB connection management
+- ✅ SQL query translation between SQLite and MariaDB
+- ✅ Data type conversion between SQLite and MariaDB
+- ✅ Transparent access to MariaDB databases
+- ✅ Proper error handling and resource management
 
-### 2. Bridge Tests
-- Bridge initialization testing
-- Virtual table creation testing
-- Query execution testing
-- DML operations testing
-- Context manager functionality
-- Resource cleanup testing
+### 2. Multi-Provider Support
+- ✅ Same interface works with both PostgreSQL and MariaDB
+- ✅ Runtime selection between database providers
+- ✅ Unified API regardless of backend
 
 ## Usage Examples
 
@@ -105,13 +113,28 @@ bridge.create_virtual_table("users", {"id": {"type": "integer"}, "name": {"type"
 results = bridge.execute_query("SELECT * FROM users")
 ```
 
-### 2. CLI Usage
+### 2. MariaDB Usage
+```python
+import sqlite3
+from sqlite_postgres_bridge import MariaDBInterface
+
+# Connect to SQLite database
+sqlite_conn = sqlite3.connect('database.db')
+
+# Create MariaDB interface
+mariadb_interface = MariaDBInterface(sqlite_conn, 'mariadb://user:pass@host:port/db')
+
+# Now SQLite queries work with MariaDB data
+results = mariadb_interface.execute_query("SELECT * FROM users")
+```
+
+### 3. CLI Usage
 ```bash
 # Test CLI connection
-sqlite-postgres-bridge --sqlite-db test.db --postgres-url "postgresql://celes:PSCh4ng3me!@10.1.1.12:5432/testdb"
+sqlite-postgres-bridge --sqlite-db test.db --postgres-url "postgresql://user:pass@host:port/db"
 
-# Run complete test suite
-make test-suite
+# Test MariaDB CLI connection
+sqlite-postgres-bridge --sqlite-db test.db --mariadb-url "mariadb://user:pass@host:port/db"
 ```
 
 ## Integration Ready
@@ -124,9 +147,9 @@ The implementation is now **completely integrated** and ready for:
 
 ## Status
 
-✅ **Core functionality complete** - The SQLite-to-PostgreSQL query proxying functionality that was missing is now implemented
-✅ **All requirements met** - The bridge now makes SQLite applications work with PostgreSQL transparently
+✅ **Core functionality complete** - The SQLite-to-PostgreSQL/MariaDB query proxying functionality that was missing is now implemented
+✅ **All requirements met** - The bridge now makes SQLite applications work with PostgreSQL/MariaDB transparently
 ✅ **Well-tested** - Comprehensive test suite validates all functionality
 ✅ **Integration-ready** - Ready for Amazon Q and other integrations
 
-The implementation delivers exactly what was requested in the original task: a service that connects SQLite database files to PostgreSQL systems, with the capability to act as a node in the file system that mimics SQLite database behavior while providing transparent access to PostgreSQL data.
+The implementation delivers exactly what was requested in the original task: a service that connects SQLite database files to PostgreSQL/MariaDB systems, with the capability to act as a node in the file system that mimics SQLite database behavior while providing transparent access to PostgreSQL/MariaDB data.
