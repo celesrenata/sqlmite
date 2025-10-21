@@ -55,7 +55,6 @@ class SQLitePostgreSQLBridge:
     def initialize(self) -> bool:
         """
         Initialize the bridge and establish connections.
-        Create virtual tables that redirect to PostgreSQL.
         
         Returns:
             True if initialization successful, False otherwise
@@ -64,60 +63,91 @@ class SQLitePostgreSQLBridge:
             # Test PostgreSQL connection
             pg_conn = self.connection_manager.get_connection()
             
-            # Create virtual tables that redirect all operations to PostgreSQL
-            from .sqlite_vtab import activate_bridge
+            # Check if SQLite has tables (Jellyfin has run)
+            sqlite_cursor = self.sqlite_conn.cursor()
+            sqlite_cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            table_count = sqlite_cursor.fetchone()[0]
             
-            # Get SQLite database path
-            sqlite_path = self.sqlite_conn.execute("PRAGMA database_list").fetchone()[2]
-            
-            # Activate the bridge with virtual tables
-            success = activate_bridge(sqlite_path, self.postgres_url)
-            
-            if success:
-                self.logger.info("Bridge initialized successfully with virtual tables")
+            if table_count > 0:
+                # SQLite has tables, migrate them to PostgreSQL
+                self._migrate_schema()
             else:
-                self.logger.error("Failed to initialize virtual tables")
-                
-            return success
+                self.logger.info("No SQLite tables found - will migrate after Jellyfin creates schema")
+            
+            self.logger.info("Bridge initialized successfully")
+            return True
             
         except Exception as e:
             self.logger.error(f"Bridge initialization failed: {str(e)}")
             return False
             
     def _migrate_schema(self) -> None:
-        """Migrate schema from SQLite to PostgreSQL."""
+        """Migrate complete schema from SQLite to PostgreSQL."""
         try:
-            # Get SQLite schema
+            # First, let Jellyfin create its complete schema in SQLite
+            # by temporarily using a standard SQLite connection
+            
+            # Get all tables and their complete CREATE statements from SQLite
             sqlite_cursor = self.sqlite_conn.cursor()
             sqlite_cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-            tables = sqlite_cursor.fetchall()
+            table_schemas = sqlite_cursor.fetchall()
             
-            if not tables:
-                self.logger.info("No tables found in SQLite database")
+            if not table_schemas:
+                self.logger.info("No tables found in SQLite database - letting Jellyfin create schema first")
                 return
                 
-            # Get PostgreSQL connection directly
+            # Connect to PostgreSQL and recreate the complete schema
             import psycopg2
             pg_conn = psycopg2.connect(self.postgres_url)
             pg_cursor = pg_conn.cursor()
             
-            for (sql,) in tables:
+            # Drop all existing tables to start fresh
+            pg_cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            existing_tables = pg_cursor.fetchall()
+            for (table,) in existing_tables:
+                pg_cursor.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE')
+            
+            # Recreate all tables with proper schema conversion
+            for (sql,) in table_schemas:
                 if sql:
-                    # Convert SQLite CREATE TABLE to PostgreSQL
                     pg_sql = self._convert_sqlite_to_postgres(sql)
                     if pg_sql:
                         try:
                             pg_cursor.execute(pg_sql)
-                            pg_conn.commit()
-                            self.logger.info(f"Created table from: {sql[:50]}...")
+                            table_name = sql.split()[2].strip('"')
+                            self.logger.info(f"Migrated table: {table_name}")
                         except Exception as e:
-                            if "already exists" in str(e):
-                                self.logger.debug(f"Table already exists: {str(e)}")
-                            else:
-                                self.logger.warning(f"Failed to create table: {str(e)}")
-                                
+                            self.logger.warning(f"Failed to migrate table: {str(e)}")
+                            
+            # Copy all data from SQLite to PostgreSQL
+            sqlite_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            tables = sqlite_cursor.fetchall()
+            
+            for (table_name,) in tables:
+                try:
+                    # Get all data from SQLite
+                    sqlite_cursor.execute(f'SELECT * FROM "{table_name}"')
+                    rows = sqlite_cursor.fetchall()
+                    
+                    if rows:
+                        # Get column names
+                        sqlite_cursor.execute(f'PRAGMA table_info("{table_name}")')
+                        columns = [col[1] for col in sqlite_cursor.fetchall()]
+                        
+                        # Insert data into PostgreSQL
+                        placeholders = ','.join(['%s'] * len(columns))
+                        col_names = ','.join([f'"{col}"' for col in columns])
+                        insert_sql = f'INSERT INTO "{table_name}" ({col_names}) VALUES ({placeholders})'
+                        
+                        pg_cursor.executemany(insert_sql, rows)
+                        self.logger.info(f"Migrated {len(rows)} rows from {table_name}")
+                        
+                except Exception as e:
+                    self.logger.warning(f"Failed to migrate data for {table_name}: {str(e)}")
+                    
+            pg_conn.commit()
             pg_conn.close()
-            self.logger.info("Schema migration completed")
+            self.logger.info("Complete schema and data migration completed")
             
         except Exception as e:
             self.logger.error(f"Schema migration failed: {str(e)}")
