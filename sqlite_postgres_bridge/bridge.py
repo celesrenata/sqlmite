@@ -55,18 +55,92 @@ class SQLitePostgreSQLBridge:
     def initialize(self) -> bool:
         """
         Initialize the bridge and establish connections.
+        Migrate schema from SQLite to PostgreSQL if needed.
         
         Returns:
             True if initialization successful, False otherwise
         """
         try:
             # Test PostgreSQL connection
-            self.connection_manager.get_connection()
+            pg_conn = self.connection_manager.get_connection()
+            
+            # Migrate schema from SQLite to PostgreSQL
+            self._migrate_schema()
+            
             self.logger.info("Bridge initialized successfully")
             return True
         except Exception as e:
             self.logger.error(f"Bridge initialization failed: {str(e)}")
             return False
+            
+    def _migrate_schema(self) -> None:
+        """Migrate schema from SQLite to PostgreSQL."""
+        try:
+            # Get SQLite schema
+            sqlite_cursor = self.sqlite_conn.cursor()
+            sqlite_cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            tables = sqlite_cursor.fetchall()
+            
+            if not tables:
+                self.logger.info("No tables found in SQLite database")
+                return
+                
+            # Get PostgreSQL connection
+            pg_conn = self.connection_manager.get_connection()
+            pg_cursor = pg_conn.cursor()
+            
+            for (sql,) in tables:
+                if sql:
+                    # Convert SQLite CREATE TABLE to PostgreSQL
+                    pg_sql = self._convert_sqlite_to_postgres(sql)
+                    try:
+                        pg_cursor.execute(pg_sql)
+                        pg_conn.commit()
+                        self.logger.info(f"Created table from: {sql[:50]}...")
+                    except Exception as e:
+                        if "already exists" in str(e):
+                            self.logger.debug(f"Table already exists: {str(e)}")
+                        else:
+                            self.logger.warning(f"Failed to create table: {str(e)}")
+                            
+            self.connection_manager.return_connection(pg_conn)
+            self.logger.info("Schema migration completed")
+            
+        except Exception as e:
+            self.logger.error(f"Schema migration failed: {str(e)}")
+            
+    def _convert_sqlite_to_postgres(self, sqlite_sql: str) -> str:
+        """Convert SQLite CREATE TABLE statement to PostgreSQL."""
+        if not sqlite_sql or not sqlite_sql.strip():
+            return ""
+            
+        try:
+            # Basic validation
+            if not sqlite_sql.upper().startswith("CREATE TABLE"):
+                self.logger.warning(f"Skipping non-CREATE TABLE statement: {sqlite_sql[:50]}")
+                return ""
+                
+            pg_sql = sqlite_sql
+            
+            # Basic type conversions
+            pg_sql = pg_sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+            pg_sql = pg_sql.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY") 
+            pg_sql = pg_sql.replace("AUTOINCREMENT", "")
+            pg_sql = pg_sql.replace("BLOB", "BYTEA")
+            
+            # Add IF NOT EXISTS if not present
+            if "IF NOT EXISTS" not in pg_sql.upper():
+                pg_sql = pg_sql.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", 1)
+                
+            # Validate the result
+            if not pg_sql.strip().endswith(";") and not pg_sql.strip().endswith(")"):
+                pg_sql = pg_sql.rstrip() + ";"
+                
+            return pg_sql
+            
+        except Exception as e:
+            self.logger.error(f"Failed to convert SQL: {sqlite_sql[:50]}... Error: {str(e)}")
+            return ""
         
     def create_virtual_table(self, table_name: str, 
                               postgres_schema: Optional[Dict[str, Any]] = None) -> bool:
