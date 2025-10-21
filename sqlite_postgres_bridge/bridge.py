@@ -173,6 +173,7 @@ class SQLitePostgreSQLBridge:
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:  
         """
         Execute a query against the PostgreSQL backend.
+        Intercept CREATE TABLE statements to replicate to PostgreSQL.
         
         Args:
             query: SQL query to execute
@@ -181,11 +182,16 @@ class SQLitePostgreSQLBridge:
         Returns:
             List of results from the query
         """
+        # Intercept CREATE TABLE statements
+        if query.strip().upper().startswith('CREATE TABLE'):
+            self._replicate_table_to_postgres(query)
+            
         return self.virtual_table_interface.execute_query(query, params)
         
     def execute_dml(self, query: str, params: tuple = ()) -> int:
         """
         Execute Data Manipulation Language operations (INSERT, UPDATE, DELETE).
+        Intercept CREATE TABLE statements to replicate to PostgreSQL.
         
         Args:
             query: SQL DML query to execute
@@ -194,7 +200,36 @@ class SQLitePostgreSQLBridge:
         Returns:
             Number of affected rows
         """
+        # Intercept CREATE TABLE statements
+        if query.strip().upper().startswith('CREATE TABLE'):
+            self._replicate_table_to_postgres(query)
+            
         return self.virtual_table_interface.execute_dml(query, params)
+        
+    def _replicate_table_to_postgres(self, sqlite_sql: str) -> None:
+        """Replicate a CREATE TABLE statement to PostgreSQL."""
+        try:
+            # Convert SQLite CREATE TABLE to PostgreSQL
+            pg_sql = self._convert_sqlite_to_postgres(sqlite_sql)
+            if not pg_sql:
+                return
+                
+            # Execute on PostgreSQL
+            import psycopg2
+            pg_conn = psycopg2.connect(self.postgres_url)
+            pg_cursor = pg_conn.cursor()
+            
+            pg_cursor.execute(pg_sql)
+            pg_conn.commit()
+            pg_conn.close()
+            
+            self.logger.info(f"Replicated table to PostgreSQL: {sqlite_sql[:50]}...")
+            
+        except Exception as e:
+            if "already exists" in str(e):
+                self.logger.debug(f"Table already exists in PostgreSQL: {str(e)}")
+            else:
+                self.logger.warning(f"Failed to replicate table to PostgreSQL: {str(e)}")
         
     def get_table_info(self, table_name: str) -> Dict[str, Any]:
         """
