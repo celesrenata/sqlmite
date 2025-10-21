@@ -55,7 +55,7 @@ class SQLitePostgreSQLBridge:
     def initialize(self) -> bool:
         """
         Initialize the bridge and establish connections.
-        Migrate schema from SQLite to PostgreSQL if needed.
+        Create virtual tables that redirect to PostgreSQL.
         
         Returns:
             True if initialization successful, False otherwise
@@ -64,11 +64,22 @@ class SQLitePostgreSQLBridge:
             # Test PostgreSQL connection
             pg_conn = self.connection_manager.get_connection()
             
-            # Migrate schema from SQLite to PostgreSQL
-            self._migrate_schema()
+            # Create virtual tables that redirect all operations to PostgreSQL
+            from .sqlite_vtab import activate_bridge
             
-            self.logger.info("Bridge initialized successfully")
-            return True
+            # Get SQLite database path
+            sqlite_path = self.sqlite_conn.execute("PRAGMA database_list").fetchone()[2]
+            
+            # Activate the bridge with virtual tables
+            success = activate_bridge(sqlite_path, self.postgres_url)
+            
+            if success:
+                self.logger.info("Bridge initialized successfully with virtual tables")
+            else:
+                self.logger.error("Failed to initialize virtual tables")
+                
+            return success
+            
         except Exception as e:
             self.logger.error(f"Bridge initialization failed: {str(e)}")
             return False
