@@ -85,25 +85,27 @@ class SQLitePostgreSQLBridge:
                 self.logger.info("No tables found in SQLite database")
                 return
                 
-            # Get PostgreSQL connection
-            pg_conn = self.connection_manager.get_connection()
+            # Get PostgreSQL connection directly
+            import psycopg2
+            pg_conn = psycopg2.connect(self.postgres_url)
             pg_cursor = pg_conn.cursor()
             
             for (sql,) in tables:
                 if sql:
                     # Convert SQLite CREATE TABLE to PostgreSQL
                     pg_sql = self._convert_sqlite_to_postgres(sql)
-                    try:
-                        pg_cursor.execute(pg_sql)
-                        pg_conn.commit()
-                        self.logger.info(f"Created table from: {sql[:50]}...")
-                    except Exception as e:
-                        if "already exists" in str(e):
-                            self.logger.debug(f"Table already exists: {str(e)}")
-                        else:
-                            self.logger.warning(f"Failed to create table: {str(e)}")
-                            
-            self.connection_manager.return_connection(pg_conn)
+                    if pg_sql:
+                        try:
+                            pg_cursor.execute(pg_sql)
+                            pg_conn.commit()
+                            self.logger.info(f"Created table from: {sql[:50]}...")
+                        except Exception as e:
+                            if "already exists" in str(e):
+                                self.logger.debug(f"Table already exists: {str(e)}")
+                            else:
+                                self.logger.warning(f"Failed to create table: {str(e)}")
+                                
+            pg_conn.close()
             self.logger.info("Schema migration completed")
             
         except Exception as e:
