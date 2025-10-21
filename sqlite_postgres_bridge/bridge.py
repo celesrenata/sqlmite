@@ -52,6 +52,22 @@ class SQLitePostgreSQLBridge:
         self.logger = logging.getLogger(__name__)
         self.logger.info("SQLite to PostgreSQL bridge initialized")
         
+    def initialize(self) -> bool:
+        """
+        Initialize the bridge and establish connections.
+        
+        Returns:
+            True if initialization successful, False otherwise
+        """
+        try:
+            # Test PostgreSQL connection
+            self.connection_manager.get_connection()
+            self.logger.info("Bridge initialized successfully")
+            return True
+        except Exception as e:
+            self.logger.error(f"Bridge initialization failed: {str(e)}")
+            return False
+        
     def create_virtual_table(self, table_name: str, 
                               postgres_schema: Optional[Dict[str, Any]] = None) -> bool:
         """
